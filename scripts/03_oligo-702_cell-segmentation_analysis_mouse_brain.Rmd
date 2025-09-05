@@ -1,0 +1,130 @@
+---
+title: "Oligo-702: Cell segmentaion analysis of space-ranger V4 on Mouse brain"
+author: "Soumya Negi, NGTx data sciences"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    collapsed: no
+    highlight: haddock
+    theme: journal
+    toc: yes
+    toc_float:
+      collapsed: no
+    fig_width: 9
+---
+
+# Setup 
+Loading packages and setting up environment. This was run on Lilly Posit RStudio, R/4.4.2.
+
+```{r setup}
+knitr::opts_chunk$set(echo = T,  message=FALSE, warning=FALSE, cache=FALSE)
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(scales)
+
+library(reticulate)
+use_virtualenv("~/env1", required = TRUE)
+```
+
+
+
+# Loading dataset from Mouse Brain
+Lets set up the mouse brain object from 10x output. 
+
+```{r}
+
+sampleInfo = read.table(file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/oligo702_brain_sampleInfo.csv",
+                       stringsAsFactors = FALSE,
+                       header = TRUE,
+                       sep = ",")
+sampleInfo$Animal <- factor(sampleInfo$Animal)
+sampleMetrics <- read.csv(file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/outputs/brain/all_metrics_summary.csv",
+                       stringsAsFactors = FALSE,
+                       header = TRUE,
+                       sep = ",")
+
+# Write code to generate boxplots from sample metrics for the columns 39-46
+# It will use sampleInfo for adding metadata for the samples, using the common ID and Sample.ID
+
+sampleMetrics <- sampleMetrics %>%
+  filter(Sample.ID %in% sampleInfo$ID) %>%
+  left_join(sampleInfo, by = c("Sample.ID" = "ID"))
+
+# Generate barplot for the columns 39-46 
+# Color the Plot by column Animal
+# Facet by column Region
+
+
+barplot_columns <- colnames(sampleMetrics)[39:46]
+barplot_list <- lapply(barplot_columns, function(col) {
+  ggplot(sampleMetrics, aes_string(x = "Histology.Section", y = col, fill = "Animal")) +
+    labs(title = gsub("\\.", " ", paste(col)), x = "Histological position", y = gsub("\\.", " ", paste(col))) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))+ facet_wrap(~ Region)+
+  geom_bar(stat="identity", position=position_dodge(), color="black")
+})
+
+
+# Print boxplots
+for (plot in barplot_list) {
+  print(plot)
+}
+
+
+```
+
+
+
+
+# Publicly available 10x Visium HD dataset
+
+```{r}
+visium.demo.samples = read.table(file = "/lrlhps/users/l106511/visium_hd/10x_genomics_website_sample_data/all_metrics_summary.csv",
+                       stringsAsFactors = FALSE,
+                       header = TRUE,
+                       sep = ",")
+visium.demo.samples$TissueName <- c("Mouse Brain", "Mouse Kidney","Mouse Embryo E15.5")
+visium.demo.samples$TissueName <- as.factor(c("Mouse Brain", "Mouse Kidney","Mouse Embryo E15.5"))
+barplot_columns.demo <- colnames(visium.demo.samples)[39:46]
+barplot_list.demo <- lapply(barplot_columns.demo, function(col) {
+  ggplot(visium.demo.samples, aes_string(x = "TissueName", y = col, fill = "TissueName")) +
+    labs(title = gsub("\\.", " ", paste(col)), x = "Tissue", y = gsub("\\.", " ", paste(col))) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")+
+  geom_bar(stat="identity", position=position_dodge(), color="black")+ xlab(NULL)+
+  scale_fill_viridis_d()+
+  scale_y_continuous(labels = label_number())
+})
+
+
+# Print boxplots
+for (plot in barplot_list.demo) {
+  print(plot)
+}
+```
+# Publicly available 10x Chromium Flex dataset
+
+```{r}
+
+library(readr)
+
+chromium.demo.samples = read_csv(file = "/lrlhps/users/l106511/chromium_single_cell/10x_genomics_website_sample_data/10x_genomics_sample_data_scFFPE_metrics_summary.csv", show_col_types = FALSE)
+colnames(chromium.demo.samples) <- gsub(" ", ".", colnames(chromium.demo.samples))
+barplot_columns.chromium <- colnames(chromium.demo.samples)[c(3,5,6,7,22,16)]
+barplot_list.chromium <- lapply(barplot_columns.chromium, function(col) {
+  ggplot(chromium.demo.samples, aes_string(x = "TissueName", y = col, fill = "TissueName")) +
+    labs(title = gsub("\\.", " ", paste(col)), x = "Tissue", y = gsub("\\.", " ", paste(col))) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none")+
+  geom_bar(stat="identity", position=position_dodge(), color="black")+ xlab(NULL)+
+  scale_fill_viridis_d()
+})
+
+
+# Print boxplots
+for (plot in barplot_list.chromium) {
+  print(plot)
+}
+```
+
+
