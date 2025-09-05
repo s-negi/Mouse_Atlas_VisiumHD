@@ -1,0 +1,1002 @@
+---
+title: "Oligo-702: Spatial Transcriptomics analysis of the Mouse brain"
+author: "Soumya Negi, NGTx data sciences"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    collapsed: no
+    highlight: haddock
+    theme: journal
+    toc: yes
+    toc_float:
+      collapsed: no
+    fig_width: 9
+---
+
+# Setup 
+Loading packages and setting up environment. This was run on Lilly Posit RStudio, R/4.4.2.
+
+```{r setup}
+knitr::opts_chunk$set(echo = T,  message=FALSE, warning=FALSE, cache=FALSE)
+
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(sf)
+library(Matrix)
+```
+
+
+
+# Loading dataset from Mouse Brain
+Lets load the Spatial Transcriptomics dataset from the Mouse Brain, already segmented using spacerangerV4. SpacerangerV4 used the StarDist to perform cell segmentations. The "Spatial.Polygons" assay contains the segmented cell information, along with gene counts. 
+
+## Forebrain
+
+Making a seurat object with raw counts from the spaceranger outputs
+```{r}
+
+sampleInfo = read.table(file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/oligo702_brain_sampleInfo.csv",
+                       stringsAsFactors = FALSE,
+                       header = TRUE,
+                       sep = ",")
+sampleInfo$Animal <- factor(sampleInfo$Animal)
+sampleMetrics <- read.csv(file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/outputs/brain/all_metrics_summary.csv",
+                       stringsAsFactors = FALSE,
+                       header = TRUE,
+                       sep = ",")
+
+# Step 1:
+step1 <- sampleInfo[sampleInfo$Region %in% "Forebrain" & sampleInfo$Histology.Section %in% "Step1",]
+step1$data.dir <- paste0("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/outputs/brain/",step1$ID,"/outs")
+step1$image.dir <- file.path(step1$data.dir, "segmented_outputs/spatial")
+
+if(!file.exists("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7217.rds")){
+# Load the Visium HD dataset with segmentations
+f.brain11 <- Load10X_Spatial(
+  data.dir = step1[1,"data.dir"],
+  slice = "slice1",
+  bin.size = c(8, 16, "polygons")
+)
+f.brain11$ID <- step1[1,"ID"]
+f.brain11$Animal <- step1[1,"Animal"]
+f.brain11$Histology.Section <- step1[1,"Histology.Section"]
+f.brain11$Tissue <- step1[1,"Tissue"]
+f.brain11$Region <- step1[1,"Region"]
+f.brain11$Label <- step1[1,"Label"]
+f.brain11$data.dir <- step1[1,"data.dir"]
+f.brain11$image.dir <- step1[1,"image.dir"]
+
+f.brain21 <- Load10X_Spatial(
+  data.dir = step1[2,"data.dir"],
+  slice = "slice1",
+  bin.size = c(8, 16, "polygons")
+)
+
+f.brain21$ID <- step1[2,"ID"]
+f.brain21$Animal <- step1[2,"Animal"]
+f.brain21$Histology.Section <- step1[2,"Histology.Section"]
+f.brain21$Tissue <- step1[2,"Tissue"]
+f.brain21$Region <- step1[2,"Region"]
+f.brain21$Label <- step1[2,"Label"]
+f.brain21$data.dir <- step1[2,"data.dir"]
+f.brain21$image.dir <- step1[2,"image.dir"]
+
+f.brain31 <- Load10X_Spatial(
+  data.dir = step1[3,"data.dir"],
+  slice = "slice1",
+  bin.size = c(8, 16, "polygons")
+)
+
+f.brain31$ID <- step1[3,"ID"]
+f.brain31$Animal <- step1[3,"Animal"]
+f.brain31$Histology.Section <- step1[3,"Histology.Section"]
+f.brain31$Tissue <- step1[3,"Tissue"]
+f.brain31$Region <- step1[3,"Region"]
+f.brain31$Label <- step1[3,"Label"]
+f.brain31$data.dir <- step1[3,"data.dir"]
+f.brain31$image.dir <- step1[3,"image.dir"]
+
+saveRDS(f.brain11,"/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7217.rds")
+saveRDS(f.brain21,"/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7218.rds")
+saveRDS(f.brain31,"/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7219.rds")
+
+}else{
+  f.brain11 <- readRDS("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7217.rds")
+  f.brain21 <- readRDS("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7218.rds")
+  f.brain31 <- readRDS("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7219.rds")
+}
+
+
+if(!file.exists("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_seurat.rds"))
+  {
+  
+  fore.brain.step1 <- merge(
+  x = f.brain11,
+  y = list(f.brain21, f.brain31),
+  add.cell.ids = c("S1", "S2", "S3")
+  )
+  
+  saveRDS(fore.brain.step1, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_seurat.rds")
+} else{
+  fore.brain.step1 <- readRDS("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_seurat.rds")
+}
+
+
+print(Assays(fore.brain.step1))
+print(Images(fore.brain.step1))
+print(fore.brain.step1[["Spatial.Polygons"]])
+
+
+```
+
+QC metrics
+```{r}
+VlnPlot(fore.brain.step1, features = "nFeature_Spatial.Polygons", pt.size = 0, group.by = "Animal") + NoLegend()
+VlnPlot(fore.brain.step1, features = "nCount_Spatial.Polygons", pt.size = 0, group.by = "Animal") + NoLegend()
+```
+
+```{r}
+
+
+DefaultAssay(f.brain11) <- "Spatial.Polygons"
+DefaultAssay(f.brain21) <- "Spatial.Polygons"
+DefaultAssay(f.brain31) <- "Spatial.Polygons"
+
+SpatialFeaturePlot(
+  object = f.brain11,
+  images = "slice1.polygons",
+  features = "nFeature_Spatial.Polygons",
+  pt.size.factor = 0.2
+) + theme(legend.position = "right") 
+
+SpatialFeaturePlot(
+  object = f.brain21,
+  images = "slice1.polygons",
+  features = "nFeature_Spatial.Polygons",
+  pt.size.factor = 0.2
+) + theme(legend.position = "right") 
+
+SpatialFeaturePlot(
+  object = f.brain31,
+  images = "slice1.polygons",
+  features = "nFeature_Spatial.Polygons",
+  pt.size.factor = 0.2
+) + theme(legend.position = "right") 
+
+
+```
+
+# Filtering Cell of low quality
+
+Lets look at the quantiles of the number of genes and UMIs per cell. We will keep cells between 1-99% and filter out the rest of the outliers.
+
+Genes distributions:
+```{r}
+library(data.table)
+q1 <- quantile(na.omit(f.brain11$nFeature_Spatial.Polygons), probs = c(0.01, 0.05, 0.5, 0.95, 0.99))
+q2 <- quantile(na.omit(f.brain21$nFeature_Spatial.Polygons), probs = c(0.01, 0.05, 0.5, 0.95, 0.99))
+q3 <- quantile(na.omit(f.brain31$nFeature_Spatial.Polygons), probs = c(0.01, 0.05, 0.5, 0.95, 0.99))
+q4 <- quantile(na.omit(fore.brain.step1$nFeature_Spatial.Polygons), probs = c(0.01, 0.05, 0.5, 0.95, 0.99))
+
+dt <- data.table(
+  Quantile = names(q1),
+  Brain11  = as.numeric(q1),
+  Brain21  = as.numeric(q2),
+  Brain31  = as.numeric(q3),
+  All.forebrain.step1 = as.numeric(q4)
+)
+colnames(dt)[2:4] <- step1[1,"Label"]
+dt
+
+```
+
+UMI distributions:
+```{r}
+library(data.table)
+q1 <- quantile(na.omit(f.brain11$nCount_Spatial.Polygons), probs = c(0.01, 0.05, 0.5, 0.95, 0.99))
+q2 <- quantile(na.omit(f.brain21$nCount_Spatial.Polygons), probs = c(0.01, 0.05, 0.5, 0.95, 0.99))
+q3 <- quantile(na.omit(f.brain31$nCount_Spatial.Polygons), probs = c(0.01, 0.05, 0.5, 0.95, 0.99))
+q4 <- quantile(na.omit(fore.brain.step1$nCount_Spatial.Polygons), probs = c(0.01, 0.05, 0.5, 0.95, 0.99))
+
+dt <- data.table(
+  Quantile = names(q1),
+  Brain11  = as.numeric(q1),
+  Brain21  = as.numeric(q2),
+  Brain31  = as.numeric(q3),
+  All.forebrain.step1 = as.numeric(q4)
+)
+colnames(dt)[2:4] <- step1[1,"Label"]
+dt
+
+```
+```{r}
+mt.genes <- rownames(fore.brain.step1)[grep("^mt-",rownames(fore.brain.step1))]
+C1<-GetAssayData(object = fore.brain.step1, slot = "counts.1")
+C2 <- GetAssayData(object = fore.brain.step1, slot = "counts.2")
+C3 <- GetAssayData(object = fore.brain.step1, slot = "counts.3")
+  
+percent.mito <- c(colSums(C1[mt.genes,])/Matrix::colSums(C1)*100,
+                    colSums(C2[mt.genes,])/Matrix::colSums(C2)*100,
+                    colSums(C3[mt.genes,])/Matrix::colSums(C3)*100)
+  
+fore.brain.step1 <- AddMetaData(fore.brain.step1, percent.mito, col.name = "percent.mito")
+  
+rb.genes <- rownames(fore.brain.step1)[grep("^RP[SL]",rownames(fore.brain.step1), ignore.case = TRUE)]
+percent.ribo <- c(colSums(C1[rb.genes,])/Matrix::colSums(C1)*100,
+                    colSums(C2[rb.genes,])/Matrix::colSums(C2)*100,
+                    colSums(C3[rb.genes,])/Matrix::colSums(C3)*100)
+fore.brain.step1 <- AddMetaData(fore.brain.step1, percent.ribo, col.name = "percent.ribo")
+
+
+
+VlnPlot(fore.brain.step1, features = "percent.mito", pt.size = 0, group.by = "Animal") + NoLegend()
+VlnPlot(fore.brain.step1, features = "percent.ribo", pt.size = 0, group.by = "Animal") + NoLegend()
+```
+
+Keeping cells only in the 1-99% quantile range for UMIs.
+
+```{r}
+if(!file.exists("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_seurat.rds")){
+  
+  f.brain11_filtered <- subset(f.brain11, 
+                          subset = nCount_Spatial.Polygons >= quantile(f.brain11$nCount_Spatial.Polygons, 0.01, na.rm = TRUE) & 
+                                  nCount_Spatial.Polygons <= quantile(f.brain11$nCount_Spatial.Polygons, 0.99, na.rm = TRUE))
+  f.brain21_filtered <- subset(f.brain21, 
+                          subset = nCount_Spatial.Polygons >= quantile(f.brain21$nCount_Spatial.Polygons, 0.01, na.rm = TRUE) & 
+                                  nCount_Spatial.Polygons <= quantile(f.brain21$nCount_Spatial.Polygons, 0.99, na.rm = TRUE))
+  
+  f.brain31_filtered <- subset(f.brain31, 
+                          subset = nCount_Spatial.Polygons >= quantile(f.brain31$nCount_Spatial.Polygons, 0.01, na.rm = TRUE) & 
+                                  nCount_Spatial.Polygons <= quantile(f.brain31$nCount_Spatial.Polygons, 0.99, na.rm = TRUE))
+  
+  fore.brain.step1_filtered <- merge(
+  x = f.brain11_filtered,
+  y = list(f.brain21_filtered, f.brain31_filtered),
+  add.cell.ids = c("S1", "S2", "S3")
+  )
+  saveRDS(f.brain11_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7317_FILTERED_seurat.rds")
+  saveRDS(f.brain21_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7318_FILTERED_seurat.rds")
+  saveRDS(f.brain31_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7319_FILTERED_seurat.rds")
+   saveRDS(fore.brain.step1_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_seurat.rds")
+}else{
+  fore.brain.step1_filtered <- readRDS("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_scT_seurat.rds")
+  f.brain11_filtered <- readRDS("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7317_FILTERED_seurat.rds")
+  f.brain21_filtered <- readRDS("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7318_FILTERED_seurat.rds")
+  
+  f.brain31_filtered <- readRDS("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7319_FILTERED_seurat.rds")
+}
+
+print(paste("Original:", sum(!is.na(f.brain11$nCount_Spatial.Polygons)), "cells"))
+print(paste("Filtered:", sum(!is.na(f.brain11_filtered$nCount_Spatial.Polygons)), "cells"))
+print(paste("Retained:", round(sum(!is.na(f.brain11_filtered$nCount_Spatial.Polygons))/sum(!is.na(f.brain11$nCount_Spatial.Polygons))*100, 1), "%"))
+
+
+print(paste("Original:", sum(!is.na(f.brain21$nCount_Spatial.Polygons)), "cells"))
+print(paste("Filtered:", sum(!is.na(f.brain21_filtered$nCount_Spatial.Polygons)), "cells"))
+print(paste("Retained:", round(sum(!is.na(f.brain21_filtered$nCount_Spatial.Polygons))/sum(!is.na(f.brain21$nCount_Spatial.Polygons))*100, 1), "%"))
+
+print(paste("Original:", sum(!is.na(f.brain31$nCount_Spatial.Polygons)), "cells"))
+print(paste("Filtered:", sum(!is.na(f.brain31_filtered$nCount_Spatial.Polygons)), "cells"))
+print(paste("Retained:", round(sum(!is.na(f.brain31_filtered$nCount_Spatial.Polygons))/sum(!is.na(f.brain31$nCount_Spatial.Polygons))*100, 1), "%"))
+
+
+
+print(paste("Original:", sum(!is.na(fore.brain.step1$nCount_Spatial.Polygons)), "cells"))
+print(paste("Filtered:", sum(!is.na(fore.brain.step1_filtered$nCount_Spatial.Polygons)), "cells"))
+print(paste("Retained:", round(sum(!is.na(fore.brain.step1_filtered$nCount_Spatial.Polygons))/sum(!is.na(fore.brain.step1$nCount_Spatial.Polygons))*100, 1), "%"))
+```
+
+```{r}
+rm(f.brain11, f.brain21, f.brain31,fore.brain.step1)
+```
+
+
+# Gene expression Normalization:
+
+We use normalize the data using SCTransform.  SCTransform is a normalization method in Seurat that uses a regularized negative binomial regression to model raw counts. It removes technical effects (like sequencing depth / library size) and stabilizes variance across genes. Output = Pearson residuals → these replace raw counts/log-normalized values for downstream PCA, clustering, and integration.
+Spatial Transcriptomics data is a little more sensitive to normalization compared to single cell datasets, as there are spots that like regions of the tissue that are depleted for neurons (such as the cortical white matter), reproducibly exhibit lower molecular counts. As a result, logNormalize that force each data point to have the same underlying ‘size’ after normalization, can be problematic.
+
+```{r}
+
+if (!"SCT" %in% fore.brain.step1_filtered@assays) {
+  
+  f.brain11_filtered <- SCTransform(
+  f.brain11_filtered,
+  assay          = "Spatial.Polygons",
+  new.assay.name = "SCT")
+  
+  f.brain21_filtered <- SCTransform(
+  f.brain21_filtered,
+  assay          = "Spatial.Polygons",
+  new.assay.name = "SCT")
+  
+  f.brain31_filtered <- SCTransform(
+  f.brain31_filtered,
+  assay          = "Spatial.Polygons",
+  new.assay.name = "SCT")
+  
+  fore.brain.step1_filtered <- SCTransform(
+  fore.brain.step1_filtered,
+  assay          = "Spatial.Polygons",
+  new.assay.name = "SCT")
+  
+  saveRDS(f.brain11_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7317_FILTERED_seurat.rds")
+  saveRDS(f.brain21_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7318_FILTERED_seurat.rds")
+  saveRDS(f.brain31_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7319_FILTERED_seurat.rds")
+  
+  saveRDS(f.brain11_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal_7317_FILTERED_scT_seurat.rds")
+  saveRDS(fore.brain.step1_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_scT_seurat.rds")
+} else{
+  fore.brain.step1_filtered <- readRDS("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_scT_seurat.rds")
+}
+DefaultAssay(f.brain11_filtered) <- "SCT"
+DefaultAssay(f.brain21_filtered) <- "SCT"
+DefaultAssay(f.brain31_filtered) <- "SCT"
+DefaultAssay(fore.brain.step1_filtered) <- "SCT"
+```
+
+
+# Expression of genes of interest
+
+Pan neuronal markers
+```{r}
+SpatialFeaturePlot(
+  object = f.brain11_filtered,
+  features = c("Rbfox3", "Snap25","Map2","Tubb3"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain21_filtered,
+  features = c("Rbfox3", "Snap25","Map2","Tubb3"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain31_filtered,
+  features = c("Rbfox3", "Snap25","Map2","Tubb3"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+```
+
+
+Excitatory neuron markers
+```{r}
+SpatialFeaturePlot(
+  object = f.brain11_filtered,
+  features = c("Slc17a7", "Slc17a6", "Camk2a","Neurod6"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain21_filtered,
+  features = c("Slc17a7", "Slc17a6", "Camk2a","Neurod6"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain31_filtered,
+  features = c("Slc17a7", "Slc17a6", "Camk2a","Neurod6"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+```
+
+Endothelial markers
+```{r}
+SpatialFeaturePlot(
+  object = f.brain11,
+  features = c("Cldn5", "Flt1","Kdr","Vwf"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain21,
+  features = c("Cldn5", "Flt1","Kdr","Vwf"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain31,
+  features = c("Cldn5", "Flt1","Kdr","Vwf"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+```
+
+Pericyte markers
+```{r}
+SpatialFeaturePlot(
+  object = f.brain11,
+  features = c("Pdgfrb", "Rgs5", "Kcnj8","Acta2"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain21,
+  features = c("Pdgfrb", "Rgs5", "Kcnj8","Acta2"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain31,
+  features = c("Pdgfrb", "Rgs5", "Kcnj8","Acta2"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+```
+
+BBB receptor candidates: Tfrc, Slc3a2, Bsg, Fcgrt, Alpl, and Car4
+
+```{r}
+SpatialFeaturePlot(
+  object = f.brain11,
+  features = c("Tfrc", "Slc3a2", "Bsg", "Fcgrt", "Alpl","Car4"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain21,
+  features = c("Tfrc", "Slc3a2", "Bsg", "Fcgrt", "Alpl","Car4"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain31,
+  features = c("Tfrc", "Slc3a2", "Bsg", "Fcgrt", "Alpl","Car4"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+```
+Neuronal receptor candidates: L1cam, Thy1, Atp1b1, Cadm3
+
+```{r}
+SpatialFeaturePlot(
+  object = f.brain11_filtered,
+  features = c("L1cam", "Thy1", "Atp1b1", "Cadm3"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain21,
+  features = c("L1cam", "Thy1", "Atp1b1", "Cadm3"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+
+SpatialFeaturePlot(
+  object = f.brain31,
+  features = c("L1cam", "Thy1", "Atp1b1", "Cadm3"),
+  images = "slice1.polygons",
+  plot_segmentations = TRUE,
+  pt.size.factor = 0.5
+)
+```
+
+
+# Clustering and UMAP
+```{r} 
+
+if(!"umap" %in% names(fore.brain.step1_filtered@reductions)) {
+  # Perform principal component analysis
+  fore.brain.step1_filtered <- RunPCA(fore.brain.step1_filtered)
+
+  # Construct nearest-neighbor graph using top PCs
+  fore.brain.step1_filtered <- FindNeighbors(fore.brain.step1_filtered, dims = 1:30)
+  fore.brain.step1_filtered <- FindClusters(fore.brain.step1_filtered, resolution = 0.2)
+  fore.brain.step1_filtered <- RunUMAP(fore.brain.step1_filtered, reduction = "pca", dims = 1:30)
+  saveRDS(fore.brain.step1_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_scT_seurat.rds")
+}
+
+
+
+
+```
+```{r}
+# Identify cell clusters
+ElbowPlot(fore.brain.step1_filtered, ndims = 50)
+VizDimLoadings(fore.brain.step1_filtered, dims = 1:2, reduction = "pca", ncol = 2)
+
+DimPlot(fore.brain.step1_filtered, reduction = "umap", label = TRUE)
+DimPlot(fore.brain.step1_filtered, reduction = "umap", label = F, group.by = "Animal")
+
+```
+# Clustering projections onto Spatial Location
+Carrying over the UMAP and PCA reductions to the individual objects, as Seurat beta is glitching during plotting steps in the object that has the information in one place.
+
+```{r}
+if(!"umap" %in% names(f.brain11_filtered@reductions)){
+  test <- subset(fore.brain.step1_filtered, subset = Animal == "7317")
+  f.brain11_filtered@reductions[["pca"]] <- test@reductions[["pca"]]
+  f.brain11_filtered@reductions[["umap"]] <- test@reductions[["umap"]]
+  
+  cluster.info <- test@meta.data$seurat_clusters
+  
+  # Name the vector with cell barcodes for proper mapping
+  names(cluster.info) <- substring(rownames(test@meta.data),4)
+  f.brain11_filtered <- AddMetaData(object = f.brain11_filtered, metadata = cluster.info, col.name = "seurat_clusters")
+  
+  test <- subset(fore.brain.step1_filtered, subset = Animal == "7318")
+  f.brain21_filtered@reductions[["pca"]] <- test@reductions[["pca"]]
+  f.brain21_filtered@reductions[["umap"]] <- test@reductions[["umap"]]
+  
+  cluster.info <- test@meta.data$seurat_clusters
+  
+  # Name the vector with cell barcodes for proper mapping
+  names(cluster.info) <- substring(rownames(test@meta.data),4)
+  f.brain21_filtered <- AddMetaData(object = f.brain21_filtered, metadata = cluster.info, col.name = "seurat_clusters")
+  
+  test <- subset(fore.brain.step1_filtered, subset = Animal == "7319")
+  f.brain31_filtered@reductions[["pca"]] <- test@reductions[["pca"]]
+  f.brain31_filtered@reductions[["umap"]] <- test@reductions[["umap"]]
+  
+  cluster.info <- test@meta.data$seurat_clusters
+  
+  
+  # Name the vector with cell barcodes for proper mapping
+  names(cluster.info) <- substring(rownames(test@meta.data),4)
+  f.brain31_filtered <- AddMetaData(object = f.brain31_filtered, metadata = cluster.info, col.name = "seurat_clusters")
+  
+  saveRDS(f.brain11_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7317_FILTERED_seurat.rds")
+  saveRDS(f.brain21_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7318_FILTERED_seurat.rds")
+  saveRDS(f.brain31_filtered, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_animal7319_FILTERED_seurat.rds")
+  rm(test, cluster.info)
+}
+
+
+SpatialDimPlot(
+  object = f.brain11_filtered,
+  group.by = "seurat_clusters",
+  images = "slice1.polygons",
+  plot_segmentations = F,
+  pt.size.factor = 0.4,
+) + guides(fill = guide_legend(override.aes = list(size = 5)))
+
+SpatialDimPlot(
+  object = f.brain21_filtered,
+  group.by = "seurat_clusters",
+  images = "slice1.polygons",
+  plot_segmentations = F,
+  pt.size.factor = 0.4
+) + guides(fill = guide_legend(override.aes = list(size = 5)))
+
+SpatialDimPlot(
+  object = f.brain31_filtered,
+  group.by = "seurat_clusters",
+  images = "slice1.polygons",
+  plot_segmentations = F,
+  pt.size.factor = 0.4
+) + guides(fill = guide_legend(override.aes = list(size = 5)))
+```
+
+```{r}
+Idents(f.brain11_filtered) <- f.brain11_filtered$seurat_clusters
+SpatialDimPlot(f.brain11_filtered, images = "slice1.polygons", pt.size.factor = 0.4, cells.highlight = CellsByIdentities(object = f.brain11_filtered, idents = c(0,1,2, 3,4, 5,6,7)), facet.highlight = TRUE, ncol = 4)
+SpatialDimPlot(f.brain11_filtered, images = "slice1.polygons", pt.size.factor = 0.4, cells.highlight = CellsByIdentities(object = f.brain11_filtered, idents = c(8,9,10,11,12,13,14,15)), facet.highlight = TRUE, ncol = 4)
+SpatialDimPlot(f.brain11_filtered, images = "slice1.polygons", pt.size.factor = 0.4, cells.highlight = CellsByIdentities(object = f.brain11_filtered, idents = c(16,17,18,19)), facet.highlight = TRUE, ncol = 4)
+```
+```{r}
+Idents(f.brain21_filtered) <- f.brain21_filtered$seurat_clusters
+SpatialDimPlot(f.brain21_filtered, images = "slice1.polygons", pt.size.factor = 0.4, cells.highlight = CellsByIdentities(object = f.brain21_filtered, idents = c(0,1,2, 3,4, 5,6,7)), facet.highlight = TRUE, ncol = 4)
+SpatialDimPlot(f.brain21_filtered, images = "slice1.polygons", pt.size.factor = 0.4, cells.highlight = CellsByIdentities(object = f.brain21_filtered, idents = c(8,9,10,11,12,13,14,15)), facet.highlight = TRUE, ncol = 4)
+SpatialDimPlot(f.brain21_filtered, images = "slice1.polygons", pt.size.factor = 0.4, cells.highlight = CellsByIdentities(object = f.brain21_filtered, idents = c(16,17,18,19)), facet.highlight = TRUE, ncol = 4)
+```
+```{r}
+Idents(f.brain31_filtered) <- f.brain31_filtered$seurat_clusters
+SpatialDimPlot(f.brain31_filtered, images = "slice1.polygons", pt.size.factor = 0.4, cells.highlight = CellsByIdentities(object = f.brain31_filtered, idents = c(0,1,2, 3,4, 5,6,7)), facet.highlight = TRUE, ncol = 4)
+SpatialDimPlot(f.brain31_filtered, images = "slice1.polygons", pt.size.factor = 0.4, cells.highlight = CellsByIdentities(object = f.brain31_filtered, idents = c(8,9,10,11,12,13,14,15)), facet.highlight = TRUE, ncol = 4)
+SpatialDimPlot(f.brain31_filtered, images = "slice1.polygons", pt.size.factor = 0.4, cells.highlight = CellsByIdentities(object = f.brain31_filtered, idents = c(16,17,18,19)), facet.highlight = TRUE, ncol = 4)
+```
+# Cell marker expression
+Plotting expression of Markers:
+
+Neuronal markers
+```{r}
+DefaultAssay(fore.brain.step1_filtered) <- "SCT"
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Rbfox3", "Snap25","Map2","Tubb3"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Rbfox3", "Snap25","Map2","Tubb3"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+Excitatory Neurons
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Slc17a7", "Slc17a6", "Camk2a","Neurod6"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Slc17a7", "Slc17a6", "Camk2a","Neurod6"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+Inhibitory Neurons
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Gad1", "Gad2", "Slc32a1", "Pvalb"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Gad1", "Gad2", "Slc32a1", "Pvalb"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol=2
+)
+```
+```{r}
+DotPlot(fore.brain.step1_filtered, features=c("Lamp5","Gad1","Gad2","Slc32a1","Slc17a7","Slc17a6")) + RotatedAxis()
+```
+
+Astrocytes
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Gfap", "Aqp4", "Aldh1l1", "Slc1a2"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Gfap", "Aqp4", "Aldh1l1", "Slc1a2"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+Microglia
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Cx3cr1", "Tmem119", "P2ry12", "Csf1r"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Cx3cr1", "Tmem119", "P2ry12", "Csf1r"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+Oligodendrocytes
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Mbp", "Mog", "Plp1", "Mag"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Mbp", "Mog", "Plp1", "Mag"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+OPCs
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Pdgfra", "Cspg4", "Olig1", "Olig2"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Pdgfra", "Cspg4", "Olig1", "Olig2"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+
+Endothelial cells
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Cldn5", "Flt1", "Vegfr1", "Vwf"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Cldn5", "Flt1", "Vegfr1", "Vwf"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+
+Pericytes
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Pdgfrb", "Rgs5", "Kcnj8"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Pdgfrb", "Rgs5", "Kcnj8"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+
+```{r}
+neuronal_markers <- c("Slc17a7", "Slc17a6", "Camk2a", "Neurod6")
+mural_markers <- c("Pdgfrb", "Rgs5", "Acta2", "Myh11", "Cspg4")
+
+# Combine markers into a single vector for plotting
+markers_to_plot <- c(neuronal_markers, mural_markers)
+
+# DotPlot for all markers in Cluster 9
+DotPlot(fore.brain.step1_filtered, features = markers_to_plot) + 
+  RotatedAxis() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  ggtitle("Cluster 9: Neuronal vs Mural Marker Expression")
+```
+
+Ependymal cells
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Foxj1", "Dynlrb2", "S100b"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Foxj1", "Dynlrb2", "S100b"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+
+Choroid plexus epithelial cells
+
+```{r}
+FeaturePlot(
+  object = fore.brain.step1_filtered,
+  features = c("Ttr", "Krt8", "Krt18"),
+  reduction = "umap"
+)
+VlnPlot(
+  object = fore.brain.step1_filtered,
+  features = c("Ttr", "Krt8", "Krt18"),
+  group.by = "seurat_clusters",
+  pt.size = 0,
+  ncol = 2
+)
+```
+# Denovo cluster marker identification
+
+I am unable to run the regular FindMarkers on the spatial object. I think there is some bug in the current version of Seurat, which is an untested beta version. So I am creating a Seurat object from the counts matrix and meta data and then running the FindAllMarkers function on that object where the counts is not defined properly. 
+```{r}
+
+if(!file.exists("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_cluster_markers_scT_seurat.csv")){
+  counts <- fore.brain.step1_filtered[["Spatial.Polygons"]]$counts.1
+
+
+  fore.brain.sc <- CreateSeuratObject(
+    counts = counts,
+    meta.data = fore.brain.step1_filtered@meta.data
+  )
+  fore.brain.sc <- SCTransform(fore.brain.sc, verbose = TRUE)
+  
+  if ("seurat_clusters" %in% colnames(fore.brain.step1_filtered@meta.data)) {
+    fore.brain.sc$seurat_clusters <- fore.brain.step1_filtered$seurat_clusters
+    Idents(fore.brain.sc) <- fore.brain.sc$seurat_clusters
+  }
+  
+  fore.brain.sc <- PrepSCTFindMarkers(fore.brain.sc, assay = "SCT")
+  markers <- FindAllMarkers(
+    fore.brain.sc,
+    assay = "SCT",
+    min.pct = 0.10,
+    logfc.threshold = 0.25,
+    only.pos = TRUE,
+    test.use = "wilcox"
+  )
+  
+  top5 <- markers %>% 
+    group_by(cluster) %>% 
+    top_n(n = 5, wt = avg_log2FC)
+  
+  write.csv(markers, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_cluster_markers_scT_seurat.csv")
+  
+  write.csv(top5, file = "/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_cluster_markers_top5_scT_seurat.csv")
+  data.table(top5)
+}else{
+  markers <- read.csv("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_cluster_markers_scT_seurat.csv")
+  top5 <- read.csv("/lrlhps/data/NGTx/SpatialTranscriptomics-mouse-atlas-oligo702/data/forebrain_step1_FILTERED_cluster_markers_top5_scT_seurat.csv")
+}
+
+data.table(top5)
+
+```
+
+
+```{r}
+library(pheatmap)
+top_genes <- unique(top5$gene)
+
+# Extract the scaled expression data from your SCT assay
+scaled_data <- GetAssayData(fore.brain.step1_filtered, assay = "SCT", slot = "scale.data")
+
+# Subset to top genes
+scaled_top_genes <- scaled_data[top_genes %in% rownames(scaled_data), ]
+
+# Optionally, order cells by cluster
+cell_order <- sort(Idents(fore.brain.step1_filtered))
+scaled_top_genes <- scaled_top_genes[, names(cell_order)]
+
+# Make annotation for clusters
+annotation_col <- data.frame(Cluster = Idents(fore.brain.step1_filtered)[names(cell_order)])
+rownames(annotation_col) <- names(cell_order)
+
+# Plot heatmap
+pheatmap(scaled_top_genes, 
+         cluster_rows = TRUE,
+         cluster_cols = FALSE,
+         show_colnames = FALSE,
+         annotation_col = annotation_col,
+         scale = "row",
+         fontsize_row = 8)
+
+DoHeatmap(fore.brain.step1_filtered, 
+          features = top5_markers$gene, 
+          group.by = "seurat_clusters", 
+          label = TRUE,        # show gene names on heatmap
+          size = 3)   
+
+n_sample <- 500  
+
+set.seed(42)
+cells_subset <- fore.brain.step1_filtered@meta.data %>%
+  group_by(seurat_clusters) %>%
+  slice_sample(n = n_sample) %>%
+  pull(rownames)
+
+# Heatmap on subset
+DoHeatmap(fore.brain.step1_filtered, 
+          features = top5_markers$gene, 
+          cells = cells_subset, 
+          group.by = "seurat_clusters", 
+          size = 3)
+```
+
+
+
+
+```{r, fig.width=10, fig.height=8}
+library(dplyr)
+n_sample <- 500  
+
+set.seed(42)
+meta <- fore.brain.step1_filtered@meta.data %>%
+  mutate(cell_name = rownames(.))
+
+# Sample cells per cluster
+cells_subset <- meta %>%
+  group_by(seurat_clusters) %>%
+  slice_sample(n = n_sample) %>%
+  pull(cell_name)
+
+DefaultAssay(fore.brain.step1_filtered) <- "SCT"
+# Heatmap on subset
+DoHeatmap(fore.brain.step1_filtered, 
+          features = top5$gene, 
+          cells = cells_subset, 
+          group.by = "seurat_clusters", 
+          size = 3)
+```
+
+
+
+# Cell annotations
+
+The Allen brain reference is considered the standard reference in the single cell world for doing annotations. It is highly curated and also differentiates the cells based on the layers of the cortex. Here we use that dataset to perform reference based cell annotations
+
+```{r}
+allen.brain <- readRDS("/lrlhps/users/l106511/single-cell_spatial_references/allen_brain_mouse/allen_cortex_mouse.rds")
+if(!"umap" %in% names(allen.brain@reductions)) {
+    allen.brain <- SCTransform(allen.brain, ncells = 3000, verbose = FALSE) %>% RunPCA(verbose = FALSE) %>% 
+    RunUMAP(dims = 1:30)
+    saveRDS("/lrlhps/users/l106511/single-cell_spatial_references/allen_brain_mouse/allen_cortex_mouse.rds")
+} 
+DimPlot(allen.brain, group.by = "subclass", label = TRUE)
+DimPlot(allen.brain, group.by = "class", label = TRUE)
+```
+
+```{r}
+
+f.brain11_filtered@reductions <- list()
+f.brain21_filtered@reductions <- list()
+f.brain31_filtered@reductions <- list()
+
+fore.brain.step1_scT<- merge(
+  x = f.brain11_filtered,
+  y = list(f.brain21_filtered, f.brain31_filtered),
+  add.cell.ids = c("S1", "S2", "S3")
+)
+
+
+anchors <- FindTransferAnchors(reference = allen.brain,
+                               query = fore.brain.step1_scT, 
+                               query.assay ="Polygon",
+                               reference.assay = "SCT")
+
+
+predictions <- TransferData(anchorset = anchors, 
+                                  refdata =  allen.brain$subclass,
+                                  dims = 1:30)
+
+predictions2 <- TransferData(anchorset = anchors, 
+                                  refdata =  allen.brain$class,
+                                  dims = 1:30)
+
+
+fore.brain.step1_filtered <- AddMetaData(fore.brain.step1_filtered, metadata = predictions2)
+
+table(fore.brain.step1_filtered$predicted.id)
+```
+
+```{r}
+DimPlot(fore.brain.step1_filtered, reduction = "umap", label = F, group.by = "predicted.id")
+```
+
+
+
